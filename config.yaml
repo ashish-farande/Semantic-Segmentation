@@ -1,5 +1,3 @@
-#TORUN: python main_train.py config_small.ini
-# 128 goes out of memory
 batch_size: 5
 n_class: 10
 lr: 0.001
@@ -11,9 +9,8 @@ crop :  True
 horizontal_flip :  True
 vertical_flip :  True
 color_jitter :  True
+weighted: True
 
-model_name :  "best-model"
+model_name :  "FCN"
+experiment_name :  "FCN-exp"
 
-# model:{outdir}/best-model.pt
-# curve:{outdir}/perf.csv
-# iou per class:{outdir}/iou.csv

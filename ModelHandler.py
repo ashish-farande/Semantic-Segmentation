@@ -1,16 +1,13 @@
 import time
-
+import yaml
+import pandas as pd
 import matplotlib.pyplot as plt
 from torch.utils.data import DataLoader
 import torch.nn as nn
 
-
-# from basic_fcn import *
-# from Unet import *
 from dataloader import *
 from utils import *
-import yaml
-import pandas as pd
+from models import *
 
 
 # train_dataset = TASDataset('tas500v1.1')
@@ -22,17 +19,31 @@ def load_config(path):
     """
     return yaml.load(open(path, 'r'), Loader=yaml.SafeLoader)
 
-
 def init_weights(m):
     if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
         torch.nn.init.xavier_uniform_(m.weight.data)
         torch.nn.init.normal_(m.bias.data)  # xavier not applicable for biases
 
+def get_model(model_name):
+    model = None
+    if model_name == "FCN":
+        model = FCN.FCN(n_class=10)
+    elif model_name == "Descent_ResNet":
+        model = Descent_ResNet.Descent_ResNet(n_class=10)
+    elif model_name == "Awful_ResNet":
+        model = Awful_ResNet.Awful_ResNet(n_class=10)
+    elif model_name == "HAPNet":
+        model = HAPNet.HAPNet(n_class=10)
+    elif model_name == "UNet":
+        model = UNet.UNet(n_class=10)
+    else:
+        print("ERROR: The model name doesnt match")
+    return model
 
 class ModelHandler:
-    def __init__(self, model, config, verbose=False, weighted=False):
-        self.model = model
-        self.config = config
+    def __init__(self, config_name, verbose=False, weighted=False):
+        self.config = load_config(config_name+'.yaml')
+        
         #self.model.apply(init_weights)
         self.optimizer = None
         self.criterion = None
@@ -40,20 +51,21 @@ class ModelHandler:
         self.verbose = verbose
 
         # Reading Config File
-        self.lr = config['lr']
-        self.n_class = config['n_class']
-        self.batch_size = config['batch_size']
+        self.lr = self.config['lr']
+        self.n_class = self.config['n_class']
+        self.batch_size = self.config['batch_size']
 
-
-
+        self.model = get_model(self.config["model_name"])
+        assert self.model is not None
+        
         self.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")  # determine which device to use (gpu or cpu)
         self.model = self.model.to(self.device)  # transfer the model to the device
 
         # Data Augmentation
-        crop = config['crop']
-        hf = config['horizontal_flip']
-        vf = config['vertical_flip']
-        jitter = config['color_jitter']
+        crop = self.config['crop']
+        hf = self.config['horizontal_flip']
+        vf = self.config['vertical_flip']
+        jitter = self.config['color_jitter']
 
         # Load Dataset
         train_dataset = TASDataset('tas500v1.1', crop=crop,
@@ -66,7 +78,7 @@ class ModelHandler:
         self.val_loader = DataLoader(dataset=val_dataset, batch_size=self.batch_size, shuffle=False)
         self.test_loader = DataLoader(dataset=test_dataset, batch_size=self.batch_size, shuffle=False)
 
-        if weighted:
+        if self.config['weighted']:
             total_labels_counts = np.zeros(self.n_class)
             for iter, (inputs, labels) in enumerate(self.train_loader):
                 labels, counts = torch.unique(labels.view(-1), return_counts =True)
@@ -83,7 +95,7 @@ class ModelHandler:
         self.set_optimizer(config['optimizer'])
 
         # output to the directory same as the name of the model!
-        self.outdir = self.config['model_name']
+        self.outdir = self.config['experiment_name']
         if not os.path.isdir(self.outdir):
             try:
                 os.mkdir('./' + self.outdir)
@@ -167,7 +179,7 @@ class ModelHandler:
             if current_miou_score > best_iou_score:
                 best_iou_score = current_miou_score
                 # save the best model
-                torch.save(self.model.state_dict(), os.path.join(self.config['model_name'] , 'best_model.pt'))
+                torch.save(self.model.state_dict(), os.path.join(self.config['experiment_name'] , 'best_model.pt'))
 
         self.plot(train=train_losses, validation=val_loss, title="Loss")
         self.plot(validation=val_miou, title="IoU Score")
@@ -224,7 +236,7 @@ class ModelHandler:
 
     def test(self):
         # TODO: load the best model and complete the rest of the function for testing
-        self.model.load_state_dict(torch.load(os.path.join(self.config['model_name'], 'best_model.pt')))
+        self.model.load_state_dict(torch.load(os.path.join(self.config['experiment_name'], 'best_model.pt')))
         self.model.eval()  # Put in eval mode (disables batchnorm/dropout) !
 
         mean_iou_scores = []
@@ -266,5 +278,5 @@ class ModelHandler:
         if ylabel is None:
             ylabel = title
         plt.ylabel(ylabel)
-        plt.savefig(os.path.join(self.config['model_name'] , str(self.fig_count) + '.png'))
+        plt.savefig(os.path.join(self.config['experiment_name'] , str(self.fig_count) + '.png'))
         plt.show()

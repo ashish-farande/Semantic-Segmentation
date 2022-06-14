@@ -26,7 +26,6 @@ def iou(pred, target, n_classes=10):
     # ious /= (n_classes - 1)
     return np.array(ious)
 
-
 def pixel_acc(pred, target):
     # TODO complete this function, make sure you don't calculate the accuracy for undefined class ("9")
     pred = pred.view(-1)

@@ -4,7 +4,7 @@ import torch.nn.functional as F
 import torch
 
    
-class unet(nn.Module):
+class UNet(nn.Module):
 
     def __init__(self, n_class):
         super().__init__()
