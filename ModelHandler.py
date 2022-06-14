@@ -41,7 +41,7 @@ def get_model(model_name):
     return model
 
 class ModelHandler:
-    def __init__(self, config_name, verbose=False, weighted=False):
+    def __init__(self, config_name, verbose=False):
         self.config = load_config(config_name+'.yaml')
         
         #self.model.apply(init_weights)

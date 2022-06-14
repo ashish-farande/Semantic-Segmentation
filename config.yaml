@@ -5,6 +5,7 @@ epoch: 2
 optimizer: 'Adam'
 objective: 'CrossEntropyLoss'
 
+dataset_path: 'data/tas500v1.1'
 crop :  True
 horizontal_flip :  True
 vertical_flip :  True
