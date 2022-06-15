@@ -9,7 +9,7 @@ from dataloader import *
 from utils import *
 from models import *
 
-
+EXPERIMENT_PATH = './experiments'
 # train_dataset = TASDataset('tas500v1.1')
 # val_dataset = TASDataset('tas500v1.1', eval=True, mode='val')
 # test_dataset = TASDataset('tas500v1.1', eval=True, mode='test')
@@ -41,14 +41,14 @@ def get_model(model_name):
     return model
 
 class ModelHandler:
-    def __init__(self, config_name, verbose=False):
+    def __init__(self, config_name):
         self.config = load_config(config_name+'.yaml')
         
         #self.model.apply(init_weights)
         self.optimizer = None
         self.criterion = None
         self.fig_count = 0
-        self.verbose = verbose
+        self.verbose = self.config['verbose']
 
         # Reading Config File
         self.lr = self.config['lr']
@@ -68,12 +68,12 @@ class ModelHandler:
         jitter = self.config['color_jitter']
 
         # Load Dataset
-        train_dataset = TASDataset('tas500v1.1', crop=crop,
+        train_dataset = TASDataset(self.config['data_path'], crop=crop,
                                    horizontal_flip=hf,
                                    vertical_flip=vf,
                                    color_jitter=jitter)
-        val_dataset = TASDataset('tas500v1.1', eval=True, mode='val')
-        test_dataset = TASDataset('tas500v1.1', eval=True, mode='test')
+        val_dataset = TASDataset(self.config['data_path'], eval=True, mode='val')
+        test_dataset = TASDataset(self.config['data_path'], eval=True, mode='test')
         self.train_loader = DataLoader(dataset=train_dataset, batch_size=self.batch_size, shuffle=True)
         self.val_loader = DataLoader(dataset=val_dataset, batch_size=self.batch_size, shuffle=False)
         self.test_loader = DataLoader(dataset=test_dataset, batch_size=self.batch_size, shuffle=False)
@@ -91,11 +91,17 @@ class ModelHandler:
 
         self.class_weights = self.class_weights.to(self.device)
         self.best_model = None
-        self.set_objective(config['objective'])
-        self.set_optimizer(config['optimizer'])
+        self.set_objective(self.config['objective'])
+        self.set_optimizer(self.config['optimizer'])
 
         # output to the directory same as the name of the model!
-        self.outdir = self.config['experiment_name']
+        if not os.path.isdir(EXPERIMENT_PATH):
+            try:
+                os.mkdir(EXPERIMENT_PATH)
+            except Exception as e:
+                print(e)
+
+        self.outdir = os.path.join(EXPERIMENT_PATH, self.config['experiment_name'])
         if not os.path.isdir(self.outdir):
             try:
                 os.mkdir('./' + self.outdir)
@@ -122,7 +128,7 @@ class ModelHandler:
         self.model = model
         self.set_optimizer(self.config['optimizer'])
 
-    def train(self, epochs):
+    def train(self):
         print("Training Started....")
         best_iou_score = 0.0
         train_losses = []
@@ -131,7 +137,7 @@ class ModelHandler:
         val_acc = []
         val_class_iou = []
 
-        for epoch in range(epochs):
+        for epoch in range(self.config['epoch']):
             ts = time.time()
             train_loss_in_epoch = []
             for iter, (inputs, labels) in enumerate(self.train_loader):
@@ -169,17 +175,11 @@ class ModelHandler:
             print("Epoch {}, loss: {}, val_iou: {}, val_acc: {}, time {}".format(epoch, mean_train_loss, current_miou_score, mean_val_acc,  time.time() - ts))
 
 
-            if self.verbose:
-                print(f'==== Epoch {epoch} ======')
-                print(f"Train Loss is {mean_train_loss}")
-                print(f"Val Loss is {mean_val_loss}")
-                print(f"IoU is {current_miou_score}")
-                print(f"Pixel acc is {mean_val_acc}")
 
             if current_miou_score > best_iou_score:
                 best_iou_score = current_miou_score
                 # save the best model
-                torch.save(self.model.state_dict(), os.path.join(self.config['experiment_name'] , 'best_model.pt'))
+                torch.save(self.model.state_dict(), os.path.join(self.outdir , 'best_model.pt'))
 
         self.plot(train=train_losses, validation=val_loss, title="Loss")
         self.plot(validation=val_miou, title="IoU Score")
@@ -236,7 +236,7 @@ class ModelHandler:
 
     def test(self):
         # TODO: load the best model and complete the rest of the function for testing
-        self.model.load_state_dict(torch.load(os.path.join(self.config['experiment_name'], 'best_model.pt')))
+        self.model.load_state_dict(torch.load(os.path.join(self.outdir, 'best_model.pt')))
         self.model.eval()  # Put in eval mode (disables batchnorm/dropout) !
 
         mean_iou_scores = []
@@ -278,5 +278,5 @@ class ModelHandler:
         if ylabel is None:
             ylabel = title
         plt.ylabel(ylabel)
-        plt.savefig(os.path.join(self.config['experiment_name'] , str(self.fig_count) + '.png'))
+        plt.savefig(os.path.join(self.outdir , str(self.fig_count) + '.png'))
         plt.show()
