@@ -5,7 +5,6 @@ import torch
 import random
 import os
 import numpy as np
-import glob
 import PIL
 from tqdm import tqdm 
 
